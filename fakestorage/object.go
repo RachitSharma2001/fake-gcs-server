@@ -934,17 +934,31 @@ func (s *Server) patchObject(r *http.Request) jsonResponse {
 	vars := unescapeMuxVars(mux.Vars(r))
 	bucketName := vars["bucketName"]
 	objectName := vars["objectName"]
-	var metadata struct {
-		Metadata map[string]string `json:"metadata"`
+
+	type acls struct {
+		Entity string
+		Role   string
 	}
-	err := json.NewDecoder(r.Body).Decode(&metadata)
+
+	var dataInBody struct {
+		Metadata map[string]string `json:"metadata"`
+		Acl      []acls
+	}
+	err := json.NewDecoder(r.Body).Decode(&dataInBody)
 	if err != nil {
 		return jsonResponse{
 			status:       http.StatusBadRequest,
 			errorMessage: "Metadata in the request couldn't decode",
 		}
 	}
-	backendObj, err := s.backend.PatchObject(bucketName, objectName, metadata.Metadata)
+	backendObj, err := s.backend.PatchObject(bucketName, objectName, dataInBody.Metadata)
+	if len(dataInBody.Acl) > 0 {
+		backendObj.ACL = []storage.ACLRule{}
+		for _, aclData := range dataInBody.Acl {
+			newAcl := storage.ACLRule{Entity: storage.ACLEntity(aclData.Entity), Role: storage.ACLRole(aclData.Role)}
+			backendObj.ACL = append(backendObj.ACL, newAcl)
+		}
+	}
 	if err != nil {
 		return jsonResponse{
 			status:       http.StatusNotFound,

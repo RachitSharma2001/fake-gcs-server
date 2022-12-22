@@ -48,6 +48,7 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 			expectedObjects: []fakestorage.Object{
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
+						ACL:         DefaultACL,
 						BucketName:  "sample-bucket",
 						Name:        "some_file.txt",
 						ContentType: testContentType,
@@ -63,6 +64,7 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 			expectedObjects: []fakestorage.Object{
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
+						ACL:         DefaultACL,
 						BucketName:  "some-bucket",
 						Name:        "a/b/c/d/e/f/object1.txt",
 						ContentType: testContentType,
@@ -71,6 +73,7 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 				},
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
+						ACL:         DefaultACL,
 						BucketName:  "some-bucket",
 						Name:        "a/b/c/d/e/f/object2.txt",
 						ContentType: testContentType,
@@ -79,6 +82,7 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 				},
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
+						ACL:         DefaultACL,
 						BucketName:  "some-bucket",
 						Name:        "root-object.txt",
 						ContentType: testContentType,
@@ -101,6 +105,7 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 			expectedObjects: []fakestorage.Object{
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
+						ACL:         DefaultACL,
 						BucketName:  "bucket1",
 						Name:        "object1.txt",
 						ContentType: testContentType,
@@ -109,6 +114,7 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 				},
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
+						ACL:         DefaultACL,
 						BucketName:  "bucket1",
 						Name:        "object2.txt",
 						ContentType: testContentType,
@@ -117,6 +123,7 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 				},
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
+						ACL:         DefaultACL,
 						BucketName:  "bucket2",
 						Name:        "object1.txt",
 						ContentType: testContentType,
@@ -125,6 +132,7 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 				},
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
+						ACL:         DefaultACL,
 						BucketName:  "bucket2",
 						Name:        "object2.txt",
 						ContentType: testContentType,

@@ -14,11 +14,19 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"cloud.google.com/go/storage"
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 	"github.com/fsouza/fake-gcs-server/internal/checksum"
 	"github.com/fsouza/fake-gcs-server/internal/config"
 	"github.com/sirupsen/logrus"
 )
+
+var DefaultACL = []storage.ACLRule{
+	{
+		Entity: "projectOwner-test-project",
+		Role:   "OWNER",
+	},
+}
 
 func main() {
 	cfg, err := config.Load(os.Args[1:])
@@ -103,6 +111,7 @@ func objectsFromBucket(localBucketPath, bucketName string) ([]fakestorage.Object
 			}
 			objects = append(objects, fakestorage.Object{
 				ObjectAttrs: fakestorage.ObjectAttrs{
+					ACL:         DefaultACL,
 					BucketName:  bucketName,
 					Name:        objectKey,
 					ContentType: mime.TypeByExtension(filepath.Ext(path)),
