@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - add_logging
 
   pull_request:
     branches:
