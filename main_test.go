@@ -11,6 +11,7 @@ import (
 	"os"
 	"testing"
 
+	"cloud.google.com/go/storage"
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -48,7 +49,7 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 			expectedObjects: []fakestorage.Object{
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
-						ACL:         []storage.ACLRule{
+						ACL: []storage.ACLRule{
 							{
 								Entity: "projectOwner-test-project",
 								Role:   "OWNER",
@@ -69,7 +70,7 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 			expectedObjects: []fakestorage.Object{
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
-						ACL:         []storage.ACLRule{
+						ACL: []storage.ACLRule{
 							{
 								Entity: "projectOwner-test-project",
 								Role:   "OWNER",
@@ -83,7 +84,7 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 				},
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
-						ACL:         []storage.ACLRule{
+						ACL: []storage.ACLRule{
 							{
 								Entity: "projectOwner-test-project",
 								Role:   "OWNER",
@@ -97,7 +98,7 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 				},
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
-						ACL:         []storage.ACLRule{
+						ACL: []storage.ACLRule{
 							{
 								Entity: "projectOwner-test-project",
 								Role:   "OWNER",
@@ -125,7 +126,7 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 			expectedObjects: []fakestorage.Object{
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
-						ACL:         []storage.ACLRule{
+						ACL: []storage.ACLRule{
 							{
 								Entity: "projectOwner-test-project",
 								Role:   "OWNER",
@@ -139,7 +140,7 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 				},
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
-						ACL:         []storage.ACLRule{
+						ACL: []storage.ACLRule{
 							{
 								Entity: "projectOwner-test-project",
 								Role:   "OWNER",
@@ -153,7 +154,7 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 				},
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
-						ACL:         []storage.ACLRule{
+						ACL: []storage.ACLRule{
 							{
 								Entity: "projectOwner-test-project",
 								Role:   "OWNER",
@@ -167,7 +168,7 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 				},
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
-						ACL:         []storage.ACLRule{
+						ACL: []storage.ACLRule{
 							{
 								Entity: "projectOwner-test-project",
 								Role:   "OWNER",

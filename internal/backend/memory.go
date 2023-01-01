@@ -308,14 +308,22 @@ func (s *storageMemory) PatchObject(bucketName, objectName string, attrsToUpdate
 	}
 
 	currObjValues := reflect.ValueOf(&(obj.ObjectAttrs)).Elem()
+	currObjType := currObjValues.Type()
 	newObjValues := reflect.ValueOf(attrsToUpdate)
 	for i := 0; i < newObjValues.NumField(); i++ {
 		if reflect.Value.IsZero(newObjValues.Field(i)) {
 			continue
+		} else if currObjType.Field(i).Name == "Metadata" {
+			if obj.Metadata == nil {
+				obj.Metadata = map[string]string{}
+			}
+			for k, v := range attrsToUpdate.Metadata {
+				obj.Metadata[k] = v
+			}
+		} else {
+			currObjValues.Field(i).Set(newObjValues.Field(i))
 		}
-		currObjValues.Field(i).Set(newObjValues.Field(i))
 	}
-
 	s.CreateObject(obj, NoConditions{})
 	return obj, nil
 }

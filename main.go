@@ -104,12 +104,12 @@ func objectsFromBucket(localBucketPath, bucketName string) ([]fakestorage.Object
 			}
 			objects = append(objects, fakestorage.Object{
 				ObjectAttrs: fakestorage.ObjectAttrs{
-					ACL:         []storage.ACLRule{
+					ACL: []storage.ACLRule{
 						{
 							Entity: "projectOwner-test-project",
 							Role:   "OWNER",
 						},
-					}, 
+					},
 					BucketName:  bucketName,
 					Name:        objectKey,
 					ContentType: mime.TypeByExtension(filepath.Ext(path)),
