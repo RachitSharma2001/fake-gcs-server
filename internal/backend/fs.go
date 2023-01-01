@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"syscall"
@@ -310,21 +311,28 @@ func (s *storageFS) DeleteObject(bucketName, objectName string) error {
 	return os.Remove(path)
 }
 
-// PatchObject patches the given object metadata.
-func (s *storageFS) PatchObject(bucketName, objectName string, metadata map[string]string) (StreamingObject, error) {
+//func (s *storageFS) PatchObject(bucketName, objectName string, metadata map[string]string) (StreamingObject, error) {
+func (s *storageFS) PatchObject(bucketName, objectName string, attrsToUpdate ObjectAttrs) (StreamingObject, error) {
+	//return nil, errors.New("In fs.go patch")
 	obj, err := s.GetObject(bucketName, objectName)
 	if err != nil {
 		return StreamingObject{}, err
 	}
 	defer obj.Close()
-	if obj.Metadata == nil {
-		obj.Metadata = map[string]string{}
+
+	currObjValues := reflect.ValueOf(&(obj.ObjectAttrs)).Elem()
+	newObjValues := reflect.ValueOf(attrsToUpdate)
+	for i := 0; i < newObjValues.NumField(); i++ {
+		if reflect.Value.IsZero(newObjValues.Field(i)) {
+			continue
+		}
+		currObjValues.Field(i).Set(newObjValues.Field(i))
 	}
-	for k, v := range metadata {
-		obj.Metadata[k] = v
-	}
+
 	obj.Generation = 0                         // reset generation id
-	return s.CreateObject(obj, NoConditions{}) // recreate object
+	//obj.ObjectAttrs.Metadata = nil
+	return obj, nil
+	// return s.CreateObject(obj, NoConditions{})
 }
 
 // UpdateObject replaces the given object metadata.

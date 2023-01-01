@@ -21,13 +21,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var DefaultACL = []storage.ACLRule{
-	{
-		Entity: "projectOwner-test-project",
-		Role:   "OWNER",
-	},
-}
-
 func main() {
 	cfg, err := config.Load(os.Args[1:])
 	if err == flag.ErrHelp {
@@ -111,7 +104,12 @@ func objectsFromBucket(localBucketPath, bucketName string) ([]fakestorage.Object
 			}
 			objects = append(objects, fakestorage.Object{
 				ObjectAttrs: fakestorage.ObjectAttrs{
-					ACL:         DefaultACL,
+					ACL:         []storage.ACLRule{
+						{
+							Entity: "projectOwner-test-project",
+							Role:   "OWNER",
+						},
+					},
 					BucketName:  bucketName,
 					Name:        objectKey,
 					ContentType: mime.TypeByExtension(filepath.Ext(path)),

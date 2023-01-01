@@ -940,25 +940,32 @@ func (s *Server) patchObject(r *http.Request) jsonResponse {
 		Role   string
 	}
 
-	var dataInBody struct {
+	var payload struct {
 		Metadata map[string]string `json:"metadata"`
 		Acl      []acls
 	}
-	err := json.NewDecoder(r.Body).Decode(&dataInBody)
+	err := json.NewDecoder(r.Body).Decode(&payload)
 	if err != nil {
 		return jsonResponse{
 			status:       http.StatusBadRequest,
 			errorMessage: "Metadata in the request couldn't decode",
 		}
 	}
-	backendObj, err := s.backend.PatchObject(bucketName, objectName, dataInBody.Metadata)
-	if len(dataInBody.Acl) > 0 {
-		backendObj.ACL = []storage.ACLRule{}
-		for _, aclData := range dataInBody.Acl {
+
+	var attrsToUpdate backend.ObjectAttrs
+
+	attrsToUpdate.Metadata = payload.Metadata
+
+	if len(payload.Acl) > 0 {
+		attrsToUpdate.ACL = []storage.ACLRule{}
+		for _, aclData := range payload.Acl {
 			newAcl := storage.ACLRule{Entity: storage.ACLEntity(aclData.Entity), Role: storage.ACLRole(aclData.Role)}
-			backendObj.ACL = append(backendObj.ACL, newAcl)
+			attrsToUpdate.ACL = append(attrsToUpdate.ACL, newAcl)
 		}
 	}
+
+	backendObj, err := s.backend.PatchObject(bucketName, objectName, attrsToUpdate)
+	
 	if err != nil {
 		return jsonResponse{
 			status:       http.StatusNotFound,

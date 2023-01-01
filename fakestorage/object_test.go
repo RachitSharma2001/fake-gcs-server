@@ -1599,7 +1599,7 @@ func checkObjectMetadata(actual, expected map[string]string, t *testing.T) {
 	if actual == nil {
 		t.Fatalf("unexpected nil metadata")
 	} else if len(actual) != len(expected) {
-		t.Fatalf("Number of metadata mismatched: #actual = %d, #expected = %d", len(actual), len(expected))
+		t.Fatalf("Number of metadata mismatched: #actual = %d, #expected = %d, %v, %v", len(actual), len(expected), actual, expected)
 	}
 	for k, v := range expected {
 		if actual[k] != v {

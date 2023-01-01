@@ -10,7 +10,8 @@ import (
 	"mime"
 	"os"
 	"testing"
-
+	
+	"cloud.google.com/go/storage"
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -48,7 +49,12 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 			expectedObjects: []fakestorage.Object{
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
-						ACL:         DefaultACL,
+						ACL:         []storage.ACLRule{
+							{
+								Entity: "projectOwner-test-project",
+								Role:   "OWNER",
+							},
+						},
 						BucketName:  "sample-bucket",
 						Name:        "some_file.txt",
 						ContentType: testContentType,
@@ -64,7 +70,12 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 			expectedObjects: []fakestorage.Object{
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
-						ACL:         DefaultACL,
+						ACL:         []storage.ACLRule{
+							{
+								Entity: "projectOwner-test-project",
+								Role:   "OWNER",
+							},
+						},
 						BucketName:  "some-bucket",
 						Name:        "a/b/c/d/e/f/object1.txt",
 						ContentType: testContentType,
@@ -73,7 +84,12 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 				},
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
-						ACL:         DefaultACL,
+						ACL:         []storage.ACLRule{
+							{
+								Entity: "projectOwner-test-project",
+								Role:   "OWNER",
+							},
+						},
 						BucketName:  "some-bucket",
 						Name:        "a/b/c/d/e/f/object2.txt",
 						ContentType: testContentType,
@@ -82,7 +98,12 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 				},
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
-						ACL:         DefaultACL,
+						ACL:         []storage.ACLRule{
+							{
+								Entity: "projectOwner-test-project",
+								Role:   "OWNER",
+							},
+						},
 						BucketName:  "some-bucket",
 						Name:        "root-object.txt",
 						ContentType: testContentType,
@@ -105,7 +126,12 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 			expectedObjects: []fakestorage.Object{
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
-						ACL:         DefaultACL,
+						ACL:         []storage.ACLRule{
+							{
+								Entity: "projectOwner-test-project",
+								Role:   "OWNER",
+							},
+						},
 						BucketName:  "bucket1",
 						Name:        "object1.txt",
 						ContentType: testContentType,
@@ -114,7 +140,12 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 				},
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
-						ACL:         DefaultACL,
+						ACL:         []storage.ACLRule{
+							{
+								Entity: "projectOwner-test-project",
+								Role:   "OWNER",
+							},
+						},
 						BucketName:  "bucket1",
 						Name:        "object2.txt",
 						ContentType: testContentType,
@@ -123,7 +154,12 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 				},
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
-						ACL:         DefaultACL,
+						ACL:         []storage.ACLRule{
+							{
+								Entity: "projectOwner-test-project",
+								Role:   "OWNER",
+							},
+						},
 						BucketName:  "bucket2",
 						Name:        "object1.txt",
 						ContentType: testContentType,
@@ -132,7 +168,12 @@ func TestGenerateObjectsFromFiles(t *testing.T) {
 				},
 				{
 					ObjectAttrs: fakestorage.ObjectAttrs{
-						ACL:         DefaultACL,
+						ACL:         []storage.ACLRule{
+							{
+								Entity: "projectOwner-test-project",
+								Role:   "OWNER",
+							},
+						},
 						BucketName:  "bucket2",
 						Name:        "object2.txt",
 						ContentType: testContentType,
