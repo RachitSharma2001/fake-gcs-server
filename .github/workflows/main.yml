@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - test-ci-944-945
 
   pull_request:
     branches:
