@@ -311,7 +311,7 @@ func (s *storageFS) DeleteObject(bucketName, objectName string) error {
 	return os.Remove(path)
 }
 
-//func (s *storageFS) PatchObject(bucketName, objectName string, metadata map[string]string) (StreamingObject, error) {
+// func (s *storageFS) PatchObject(bucketName, objectName string, metadata map[string]string) (StreamingObject, error) {
 func (s *storageFS) PatchObject(bucketName, objectName string, attrsToUpdate ObjectAttrs) (StreamingObject, error) {
 	obj, err := s.GetObject(bucketName, objectName)
 	if err != nil {
@@ -337,7 +337,7 @@ func (s *storageFS) PatchObject(bucketName, objectName string, attrsToUpdate Obj
 		}
 	}
 
-	obj.Generation = 0                         // reset generation id
+	obj.Generation = 0 // reset generation id
 	return s.CreateObject(obj, NoConditions{})
 }
 

@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	
+
 	"cloud.google.com/go/storage"
 )
 
