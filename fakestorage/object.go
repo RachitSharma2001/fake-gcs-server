@@ -965,7 +965,6 @@ func (s *Server) patchObject(r *http.Request) jsonResponse {
 	}
 
 	backendObj, err := s.backend.PatchObject(bucketName, objectName, attrsToUpdate)
-	
 	if err != nil {
 		return jsonResponse{
 			status:       http.StatusNotFound,
