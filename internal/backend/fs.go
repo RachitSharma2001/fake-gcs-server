@@ -10,10 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"syscall"
@@ -179,16 +179,7 @@ func (s *storageFS) CreateObject(obj StreamingObject, conditions Conditions) (St
 		return StreamingObject{}, PreConditionFailed
 	}
 
-	path := filepath.Join(s.rootDir, url.PathEscape(obj.BucketName), obj.Name)
-	if err = os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return StreamingObject{}, err
-	}
-
-	// Nothing to do if this operation only creates directories
-	if strings.HasSuffix(obj.Name, "/") {
-		// TODO: populate Crc32c, Md5Hash, and Etag
-		return StreamingObject{obj.ObjectAttrs, noopSeekCloser{bytes.NewReader([]byte{})}}, nil
-	}
+	path := filepath.Join(s.rootDir, url.PathEscape(obj.BucketName), url.PathEscape(obj.Name))
 
 	var buf bytes.Buffer
 	hasher := checksum.NewStreamingHasher()
@@ -227,31 +218,28 @@ func (s *storageFS) ListObjects(bucketName string, prefix string, versions bool)
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
+	infos, err := os.ReadDir(filepath.Join(s.rootDir, url.PathEscape(bucketName)))
+	if err != nil {
+		return nil, err
+	}
 	objects := []ObjectAttrs{}
-	// TODO: WalkDir more efficient?
-	bucketPath := filepath.Join(s.rootDir, url.PathEscape(bucketName))
-	if err := filepath.Walk(bucketPath, func(path string, info fs.FileInfo, _ error) error {
-		// Rel() should never return error since path always descend from bucketPath
-		objName, _ := filepath.Rel(bucketPath, path)
-		// TODO: should this check path?
+	for _, info := range infos {
 		if s.mh.isSpecialFile(info.Name()) {
-			return nil
+			continue
 		}
-		if info.IsDir() {
-			return nil
-		}
-		if prefix != "" && !strings.HasPrefix(objName, prefix) {
-			return nil
-		}
-		object, err := s.getObject(bucketName, objName)
+		unescaped, err := url.PathUnescape(info.Name())
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("failed to unescape object name %s: %w", info.Name(), err)
+		}
+		if prefix != "" && !strings.HasPrefix(unescaped, prefix) {
+			continue
+		}
+		object, err := s.getObject(bucketName, unescaped)
+		if err != nil {
+			return nil, err
 		}
 		object.Close()
 		objects = append(objects, object.ObjectAttrs)
-		return nil
-	}); err != nil {
-		return nil, err
 	}
 	return objects, nil
 }
@@ -277,7 +265,7 @@ func (s *storageFS) GetObjectWithGeneration(bucketName, objectName string, gener
 }
 
 func (s *storageFS) getObject(bucketName, objectName string) (StreamingObject, error) {
-	path := filepath.Join(s.rootDir, url.PathEscape(bucketName), objectName)
+	path := filepath.Join(s.rootDir, url.PathEscape(bucketName), url.PathEscape(objectName))
 
 	encoded, err := s.mh.read(path)
 	if err != nil {
@@ -316,43 +304,71 @@ func (s *storageFS) DeleteObject(bucketName, objectName string) error {
 	if objectName == "" {
 		return errors.New("can't delete object with empty name")
 	}
-	path := filepath.Join(s.rootDir, url.PathEscape(bucketName), objectName)
+	path := filepath.Join(s.rootDir, url.PathEscape(bucketName), url.PathEscape(objectName))
 	if err := s.mh.remove(path); err != nil {
 		return err
 	}
 	return os.Remove(path)
 }
 
-// PatchObject patches the given object metadata.
-func (s *storageFS) PatchObject(bucketName, objectName string, metadata map[string]string) (StreamingObject, error) {
+// func (s *storageFS) PatchObject(bucketName, objectName string, metadata map[string]string) (StreamingObject, error) {
+func (s *storageFS) PatchObject(bucketName, objectName string, attrsToUpdate ObjectAttrs) (StreamingObject, error) {
 	obj, err := s.GetObject(bucketName, objectName)
 	if err != nil {
 		return StreamingObject{}, err
 	}
 	defer obj.Close()
-	if obj.Metadata == nil {
-		obj.Metadata = map[string]string{}
+
+	currObjValues := reflect.ValueOf(&(obj.ObjectAttrs)).Elem()
+	currObjType := currObjValues.Type()
+	newObjValues := reflect.ValueOf(attrsToUpdate)
+	for i := 0; i < newObjValues.NumField(); i++ {
+		if reflect.Value.IsZero(newObjValues.Field(i)) {
+			continue
+		} else if currObjType.Field(i).Name == "Metadata" {
+			if obj.Metadata == nil {
+				obj.Metadata = map[string]string{}
+			}
+			for k, v := range attrsToUpdate.Metadata {
+				obj.Metadata[k] = v
+			}
+		} else {
+			currObjValues.Field(i).Set(newObjValues.Field(i))
+		}
 	}
-	for k, v := range metadata {
-		obj.Metadata[k] = v
-	}
-	obj.Generation = 0                         // reset generation id
-	return s.CreateObject(obj, NoConditions{}) // recreate object
+
+	obj.Generation = 0 // reset generation id
+	return s.CreateObject(obj, NoConditions{})
 }
 
 // UpdateObject replaces the given object metadata.
-func (s *storageFS) UpdateObject(bucketName, objectName string, metadata map[string]string) (StreamingObject, error) {
+func (s *storageFS) UpdateObject(bucketName, objectName string, attrsToUpdate ObjectAttrs) (StreamingObject, error) {
 	obj, err := s.GetObject(bucketName, objectName)
 	if err != nil {
 		return StreamingObject{}, err
 	}
 	defer obj.Close()
-	obj.Metadata = map[string]string{}
-	for k, v := range metadata {
-		obj.Metadata[k] = v
+
+	currObjValues := reflect.ValueOf(&(obj.ObjectAttrs)).Elem()
+	currObjType := currObjValues.Type()
+	newObjValues := reflect.ValueOf(attrsToUpdate)
+	for i := 0; i < newObjValues.NumField(); i++ {
+		if reflect.Value.IsZero(newObjValues.Field(i)) {
+			continue
+		} else if currObjType.Field(i).Name == "Metadata" {
+			if obj.Metadata == nil {
+				obj.Metadata = map[string]string{}
+			}
+			for k, v := range attrsToUpdate.Metadata {
+				obj.Metadata[k] = v
+			}
+		} else {
+			currObjValues.Field(i).Set(newObjValues.Field(i))
+		}
 	}
-	obj.Generation = 0                         // reset generation id
-	return s.CreateObject(obj, NoConditions{}) // recreate object
+
+	obj.Generation = 0 // reset generation id
+	return s.CreateObject(obj, NoConditions{})
 }
 
 type concatenatedContent struct {
