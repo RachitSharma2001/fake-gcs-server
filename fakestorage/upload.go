@@ -15,6 +15,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"time"
 	"strconv"
 	"strings"
 
@@ -35,6 +36,7 @@ const (
 type multipartMetadata struct {
 	ContentType     string            `json:"contentType"`
 	ContentEncoding string            `json:"contentEncoding"`
+	CustomTime      time.Time         `json:"customTime,omitempty"`
 	Name            string            `json:"name"`
 	Metadata        map[string]string `json:"metadata"`
 }
@@ -63,6 +65,8 @@ func (c generationCondition) ConditionsMet(activeGeneration int64) bool {
 }
 
 func (s *Server) insertObject(r *http.Request) jsonResponse {
+	//ln("InsertObject called")
+
 	bucketName := unescapeMuxVars(mux.Vars(r))["bucketName"]
 
 	if _, err := s.backend.GetBucket(bucketName); err != nil {
@@ -95,6 +99,7 @@ func (s *Server) insertObject(r *http.Request) jsonResponse {
 }
 
 func (s *Server) insertFormObject(r *http.Request) xmlResponse {
+	//ln("InsertFormObject called")
 	bucketName := unescapeMuxVars(mux.Vars(r))["bucketName"]
 
 	if err := r.ParseMultipartForm(32 << 20); nil != err {
@@ -189,10 +194,13 @@ func (s *Server) wrapUploadPreconditions(r *http.Request, bucketName string, obj
 }
 
 func (s *Server) simpleUpload(bucketName string, r *http.Request) jsonResponse {
+	//ln("simpleUpload called")
+
 	defer r.Body.Close()
 	name := r.URL.Query().Get("name")
 	predefinedACL := r.URL.Query().Get("predefinedAcl")
 	contentEncoding := r.URL.Query().Get("contentEncoding")
+	customTime := r.URL.Query().Get("customTime")
 	if name == "" {
 		return jsonResponse{
 			status:       http.StatusBadRequest,
@@ -205,6 +213,7 @@ func (s *Server) simpleUpload(bucketName string, r *http.Request) jsonResponse {
 			Name:            name,
 			ContentType:     r.Header.Get(contentTypeHeader),
 			ContentEncoding: contentEncoding,
+			CustomTime: 	 convertTimeWithoutError(customTime),
 			ACL:             getObjectACL(predefinedACL),
 		},
 		Content: notImplementedSeeker{r.Body},
@@ -226,11 +235,12 @@ func (s notImplementedSeeker) Seek(offset int64, whence int) (int64, error) {
 }
 
 func (s *Server) signedUpload(bucketName string, r *http.Request) jsonResponse {
+	//ln("signedUpload called")
 	defer r.Body.Close()
 	name := unescapeMuxVars(mux.Vars(r))["objectName"]
 	predefinedACL := r.URL.Query().Get("predefinedAcl")
 	contentEncoding := r.URL.Query().Get("contentEncoding")
-
+	//customTime := r.URL.Query().Get("customTime")
 	// Load data from HTTP Headers
 	if contentEncoding == "" {
 		contentEncoding = r.Header.Get("Content-Encoding")
@@ -282,6 +292,7 @@ func getObjectACL(predefinedACL string) []storage.ACLRule {
 }
 
 func (s *Server) multipartUpload(bucketName string, r *http.Request) jsonResponse {
+	//ln("multipartUpload called")
 	defer r.Body.Close()
 	_, params, err := mime.ParseMediaType(r.Header.Get(contentTypeHeader))
 	if err != nil {
@@ -337,6 +348,7 @@ func (s *Server) multipartUpload(bucketName string, r *http.Request) jsonRespons
 			Name:            objName,
 			ContentType:     contentType,
 			ContentEncoding: metadata.ContentEncoding,
+			CustomTime:		 metadata.CustomTime,
 			ACL:             getObjectACL(predefinedACL),
 			Metadata:        metadata.Metadata,
 		},
@@ -357,6 +369,7 @@ func (s *Server) resumableUpload(bucketName string, r *http.Request) jsonRespons
 	}
 	predefinedACL := r.URL.Query().Get("predefinedAcl")
 	contentEncoding := r.URL.Query().Get("contentEncoding")
+	//customTime := r.URL.Query().Get("customTime")
 	metadata := new(multipartMetadata)
 	if r.Body != http.NoBody {
 		var err error
@@ -378,10 +391,12 @@ func (s *Server) resumableUpload(bucketName string, r *http.Request) jsonRespons
 			Name:            objName,
 			ContentType:     metadata.ContentType,
 			ContentEncoding: contentEncoding,
+			CustomTime: 	 metadata.CustomTime,
 			ACL:             getObjectACL(predefinedACL),
 			Metadata:        metadata.Metadata,
 		},
 	}
+	//obj.CustomTime = convertTimeWithoutError("2023-01-05 20:59:13 +0000 UTC")
 	uploadID, err := generateUploadID()
 	if err != nil {
 		return jsonResponse{errorMessage: err.Error()}
@@ -461,6 +476,8 @@ func (s *Server) uploadFileContent(r *http.Request) jsonResponse {
 	obj.Md5Hash = checksum.EncodedMd5Hash(obj.Content)
 	obj.Etag = fmt.Sprintf("%q", obj.Md5Hash)
 	obj.ContentType = r.Header.Get(contentTypeHeader)
+	// obj.CustomTime = convertTimeWithoutError("2023-01-05 20:59:13 +0000 UTC")
+	//obj.CustomTime = convertTimeWithoutError(r.URL.Query().Get("customTime"))
 	responseHeader := make(http.Header)
 	if contentRange := r.Header.Get("Content-Range"); contentRange != "" {
 		parsed, err := parseContentRange(contentRange)

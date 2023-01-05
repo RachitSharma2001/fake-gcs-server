@@ -26,9 +26,10 @@ type Storage interface {
 	ListObjects(bucketName string, prefix string, versions bool) ([]ObjectAttrs, error)
 	GetObject(bucketName, objectName string) (StreamingObject, error)
 	GetObjectWithGeneration(bucketName, objectName string, generation int64) (StreamingObject, error)
-	DeleteObject(bucketName, objectName string) error
-	PatchObject(bucketName, objectName string, metadata map[string]string) (StreamingObject, error)
-	UpdateObject(bucketName, objectName string, metadata map[string]string) (StreamingObject, error)
+	DeleteObject(bucketName, objectName string) error 
+	PatchObject(bucketName, objectName string, attrsToUpdate ObjectAttrs) (StreamingObject, error)
+	//UpdateObject(bucketName, objectName string, metadata map[string]string) (StreamingObject, error)
+	UpdateObject(bucketName, objectName string, attrsToUpdate ObjectAttrs) (StreamingObject, error)
 	ComposeObject(bucketName string, objectNames []string, destinationName string, metadata map[string]string, contentType string) (StreamingObject, error)
 }
 
