@@ -151,6 +151,8 @@ func (s *storageFS) DeleteBucket(name string) error {
 // reading the object content. Any checksum or hash in the passed-in object
 // metadata is overwritten.
 func (s *storageFS) CreateObject(obj StreamingObject, conditions Conditions) (StreamingObject, error) {
+	//println()
+	//println("===========================================")
 	if obj.Generation > 0 {
 		return StreamingObject{}, errors.New("not implemented: fs storage type does not support objects generation yet")
 	}
@@ -195,6 +197,7 @@ func (s *storageFS) CreateObject(obj StreamingObject, conditions Conditions) (St
 
 	// TODO: Handle if metadata is not present more gracefully?
 	encoded, err := json.Marshal(obj.ObjectAttrs)
+	//println("Custom time attr: ", obj.ObjectAttrs.CustomTime)
 	if err != nil {
 		return StreamingObject{}, err
 	}
@@ -207,8 +210,19 @@ func (s *storageFS) CreateObject(obj StreamingObject, conditions Conditions) (St
 		return StreamingObject{}, err
 	}
 
+	//println("Path: ", path)
+	//println("Encoded: ", encoded)
+
+	// println("		Encoded: ", encoded)
+	newencode, _ := s.mh.read(path)
+	var newattrs ObjectAttrs
+	_ = json.Unmarshal(newencode, &newattrs)
+	//println("New attrs: ", newattrs.CustomTime)
+	////println("		New encoded: ", newencode)
 	err = openObjectAndSetSize(&obj, path)
 
+	//println("===========================================")
+	//println()
 	return obj, err
 }
 
@@ -246,6 +260,7 @@ func (s *storageFS) ListObjects(bucketName string, prefix string, versions bool)
 
 // GetObject get an object by bucket and name.
 func (s *storageFS) GetObject(bucketName, objectName string) (StreamingObject, error) {
+	////println("Get object within fs.go is called")
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 	return s.getObject(bucketName, objectName)
@@ -265,23 +280,35 @@ func (s *storageFS) GetObjectWithGeneration(bucketName, objectName string, gener
 }
 
 func (s *storageFS) getObject(bucketName, objectName string) (StreamingObject, error) {
+	//println()
+	//println("=================== GEt Obj ========================")
 	path := filepath.Join(s.rootDir, url.PathEscape(bucketName), url.PathEscape(objectName))
 
+	//println("Path: ", path)
 	encoded, err := s.mh.read(path)
 	if err != nil {
 		return StreamingObject{}, err
 	}
+
+	//println("Encoded: ", encoded)
 
 	var obj StreamingObject
 	if err = json.Unmarshal(encoded, &obj.ObjectAttrs); err != nil {
 		return StreamingObject{}, err
 	}
 
+	//println("Obj custom time: ", obj.ObjectAttrs.CustomTime)
+
+	////println("Objet attrs custom time", obj.ObjectAttrs.CustomTime)
+
 	obj.Name = filepath.ToSlash(objectName)
 	obj.BucketName = bucketName
 
 	err = openObjectAndSetSize(&obj, path)
+	//println("Obj custom time: ", obj.ObjectAttrs.CustomTime)
 
+	//println("===========================================")
+	//println()
 	return obj, err
 }
 
@@ -292,6 +319,7 @@ func openObjectAndSetSize(obj *StreamingObject, path string) error {
 	}
 
 	obj.Content = newLazyReader(path)
+	////println("Within fs.go:          obj.Content: ", obj.Content)
 	obj.Size = info.Size()
 
 	return nil
@@ -322,6 +350,7 @@ func (s *storageFS) PatchObject(bucketName, objectName string, attrsToUpdate Obj
 	currObjValues := reflect.ValueOf(&(obj.ObjectAttrs)).Elem()
 	currObjType := currObjValues.Type()
 	newObjValues := reflect.ValueOf(attrsToUpdate)
+	////println("Within patch object, custom time before: ", obj.CustomTime)
 	for i := 0; i < newObjValues.NumField(); i++ {
 		if reflect.Value.IsZero(newObjValues.Field(i)) {
 			continue
@@ -333,42 +362,59 @@ func (s *storageFS) PatchObject(bucketName, objectName string, attrsToUpdate Obj
 				obj.Metadata[k] = v
 			}
 		} else {
+			////println("Within PatchObject, updating: ", currObjType.Field(i).Name)
 			currObjValues.Field(i).Set(newObjValues.Field(i))
 		}
 	}
+	////println("Within patch object, custom time after: ", obj.CustomTime)
 
 	obj.Generation = 0 // reset generation id
 	return s.CreateObject(obj, NoConditions{})
 }
 
 // UpdateObject replaces the given object metadata.
-func (s *storageFS) UpdateObject(bucketName, objectName string, attrsToUpdate ObjectAttrs) (StreamingObject, error) {
+// func (s *storageFS) UpdateObject(bucketName, objectName string, attrsToUpdate ObjectAttrs) (StreamingObject, error) {
+// 	obj, err := s.GetObject(bucketName, objectName)
+// 	if err != nil {
+// 		return StreamingObject{}, err
+// 	}
+// 	defer obj.Close()
+
+// 	currObjValues := reflect.ValueOf(&(obj.ObjectAttrs)).Elem()
+// 	currObjType := currObjValues.Type()
+// 	newObjValues := reflect.ValueOf(attrsToUpdate)
+// 	for i := 0; i < newObjValues.NumField(); i++ {
+// 		if reflect.Value.IsZero(newObjValues.Field(i)) {
+// 			continue
+// 		} else if currObjType.Field(i).Name == "Metadata" {
+// 			if obj.Metadata == nil {
+// 				obj.Metadata = map[string]string{}
+// 			}
+// 			for k, v := range attrsToUpdate.Metadata {
+// 				obj.Metadata[k] = v
+// 			}
+// 		} else {
+// 			currObjValues.Field(i).Set(newObjValues.Field(i))
+// 		}
+// 	}
+
+// 	obj.Generation = 0 // reset generation id
+// 	return s.CreateObject(obj, NoConditions{})
+// }
+
+// UpdateObject replaces the given object metadata.
+func (s *storageFS) UpdateObject(bucketName, objectName string, metadata map[string]string) (StreamingObject, error) {
 	obj, err := s.GetObject(bucketName, objectName)
 	if err != nil {
 		return StreamingObject{}, err
 	}
 	defer obj.Close()
-
-	currObjValues := reflect.ValueOf(&(obj.ObjectAttrs)).Elem()
-	currObjType := currObjValues.Type()
-	newObjValues := reflect.ValueOf(attrsToUpdate)
-	for i := 0; i < newObjValues.NumField(); i++ {
-		if reflect.Value.IsZero(newObjValues.Field(i)) {
-			continue
-		} else if currObjType.Field(i).Name == "Metadata" {
-			if obj.Metadata == nil {
-				obj.Metadata = map[string]string{}
-			}
-			for k, v := range attrsToUpdate.Metadata {
-				obj.Metadata[k] = v
-			}
-		} else {
-			currObjValues.Field(i).Set(newObjValues.Field(i))
-		}
+	obj.Metadata = map[string]string{}
+	for k, v := range metadata {
+		obj.Metadata[k] = v
 	}
-
-	obj.Generation = 0 // reset generation id
-	return s.CreateObject(obj, NoConditions{})
+	obj.Generation = 0                         // reset generation id
+	return s.CreateObject(obj, NoConditions{}) // recreate object
 }
 
 type concatenatedContent struct {

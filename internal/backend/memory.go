@@ -329,44 +329,44 @@ func (s *storageMemory) PatchObject(bucketName, objectName string, attrsToUpdate
 }
 
 // UpdateObject replaces an object metadata.
-// func (s *storageMemory) UpdateObject(bucketName, objectName string, metadata map[string]string) (StreamingObject, error) {
-// 	obj, err := s.GetObject(bucketName, objectName)
-// 	if err != nil {
-// 		return StreamingObject{}, err
-// 	}
-// 	obj.Metadata = map[string]string{}
-// 	for k, v := range metadata {
-// 		obj.Metadata[k] = v
-// 	}
-// 	s.CreateObject(obj, NoConditions{}) // recreate object
-// 	return obj, nil
-// }
-func (s *storageFS) UpdateObject(bucketName, objectName string, attrsToUpdate ObjectAttrs) (StreamingObject, error) {
+func (s *storageMemory) UpdateObject(bucketName, objectName string, metadata map[string]string) (StreamingObject, error) {
 	obj, err := s.GetObject(bucketName, objectName)
 	if err != nil {
 		return StreamingObject{}, err
 	}
-	currObjValues := reflect.ValueOf(&(obj.ObjectAttrs)).Elem()
-	currObjType := currObjValues.Type()
-	newObjValues := reflect.ValueOf(attrsToUpdate)
-	for i := 0; i < newObjValues.NumField(); i++ {
-		if reflect.Value.IsZero(newObjValues.Field(i)) {
-			continue
-		} else if currObjType.Field(i).Name == "Metadata" {
-			if obj.Metadata == nil {
-				obj.Metadata = map[string]string{}
-			}
-			for k, v := range attrsToUpdate.Metadata {
-				obj.Metadata[k] = v
-			}
-		} else {
-			currObjValues.Field(i).Set(newObjValues.Field(i))
-		}
+	obj.Metadata = map[string]string{}
+	for k, v := range metadata {
+		obj.Metadata[k] = v
 	}
-
-	s.CreateObject(obj, NoConditions{})
+	s.CreateObject(obj, NoConditions{}) // recreate object
 	return obj, nil
 }
+// func (s *storageFS) UpdateObject(bucketName, objectName string, attrsToUpdate ObjectAttrs) (StreamingObject, error) {
+// 	obj, err := s.GetObject(bucketName, objectName)
+// 	if err != nil {
+// 		return StreamingObject{}, err
+// 	}
+// 	currObjValues := reflect.ValueOf(&(obj.ObjectAttrs)).Elem()
+// 	currObjType := currObjValues.Type()
+// 	newObjValues := reflect.ValueOf(attrsToUpdate)
+// 	for i := 0; i < newObjValues.NumField(); i++ {
+// 		if reflect.Value.IsZero(newObjValues.Field(i)) {
+// 			continue
+// 		} else if currObjType.Field(i).Name == "Metadata" {
+// 			if obj.Metadata == nil {
+// 				obj.Metadata = map[string]string{}
+// 			}
+// 			for k, v := range attrsToUpdate.Metadata {
+// 				obj.Metadata[k] = v
+// 			}
+// 		} else {
+// 			currObjValues.Field(i).Set(newObjValues.Field(i))
+// 		}
+// 	}
+
+// 	s.CreateObject(obj, NoConditions{})
+// 	return obj, nil
+// }
 
 
 func (s *storageMemory) ComposeObject(bucketName string, objectNames []string, destinationName string, metadata map[string]string, contentType string) (StreamingObject, error) {

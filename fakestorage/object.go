@@ -260,6 +260,7 @@ func (o *objectAttrsList) Swap(i int, j int) {
 // In addition to streaming, CreateObjectStreaming returns an error instead of
 // panicking when an error occurs.
 func (s *Server) CreateObject(obj Object) {
+	//println("Create  obj called")
 	err := s.CreateObjectStreaming(obj.StreamingObject())
 	if err != nil {
 		panic(err)
@@ -280,6 +281,8 @@ func (s *Server) CreateObjectStreaming(obj StreamingObject) error {
 }
 
 func (s *Server) createObject(obj StreamingObject, conditions backend.Conditions) (StreamingObject, error) {
+	//println("other create  obj called")
+
 	oldBackendObj, err := s.backend.GetObject(obj.BucketName, obj.Name)
 	// Calling Close before checking err is okay on objects, and the object
 	// may need to be closed whether or not there's an error.
@@ -509,6 +512,7 @@ func (s *Server) GetObject(bucketName, objectName string) (Object, error) {
 // GetObjectStreaming returns the object with the given name in the given
 // bucket, or an error if the object doesn't exist.
 func (s *Server) GetObjectStreaming(bucketName, objectName string) (StreamingObject, error) {
+	//println("Get obj streaming called!")
 	backendObj, err := s.backend.GetObject(bucketName, objectName)
 	if err != nil {
 		return StreamingObject{}, err
@@ -520,6 +524,7 @@ func (s *Server) GetObjectStreaming(bucketName, objectName string) (StreamingObj
 // GetObjectWithGeneration is the non-streaming version of
 // GetObjectWithGenerationStreaming.
 func (s *Server) GetObjectWithGeneration(bucketName, objectName string, generation int64) (Object, error) {
+	//println("get obj with generation is called")
 	streamingObject, err := s.GetObjectWithGenerationStreaming(bucketName, objectName, generation)
 	if err != nil {
 		return Object{}, err
@@ -542,6 +547,7 @@ func (s *Server) GetObjectWithGenerationStreaming(bucketName, objectName string,
 }
 
 func (s *Server) objectWithGenerationOnValidGeneration(bucketName, objectName, generationStr string) (StreamingObject, error) {
+	//println(" ---------------- Object with generation on valid generation called ")
 	generation, err := strconv.ParseInt(generationStr, 10, 64)
 	if err != nil && generationStr != "" {
 		return StreamingObject{}, errInvalidGeneration
@@ -568,12 +574,15 @@ func (s *Server) listObjects(r *http.Request) jsonResponse {
 }
 
 func (s *Server) getObject(w http.ResponseWriter, r *http.Request) {
+	//println("get object called")
 	if alt := r.URL.Query().Get("alt"); alt == "media" || r.Method == http.MethodHead {
 		s.downloadObject(w, r)
 		return
 	}
 
 	handler := jsonToHTTPHandler(func(r *http.Request) jsonResponse {
+		println("============================== getObject ===========================")
+
 		vars := unescapeMuxVars(mux.Vars(r))
 
 		obj, err := s.objectWithGenerationOnValidGeneration(vars["bucketName"], vars["objectName"], r.FormValue("generation"))
@@ -594,9 +603,14 @@ func (s *Server) getObject(w http.ResponseWriter, r *http.Request) {
 		}
 		header := make(http.Header)
 		header.Set("Accept-Ranges", "bytes")
+		fmt.Println("object attributes: ", obj.ObjectAttrs)
+		fmt.Println("obj custom time: ", obj.ObjectAttrs.CustomTime)
+		d := newObjectResponse(obj.ObjectAttrs)
+		fmt.Println("d: ", d)
+		println("========================================")
 		return jsonResponse{
 			header: header,
-			data:   newObjectResponse(obj.ObjectAttrs),
+			data:   d,
 		}
 	})
 
@@ -940,7 +954,8 @@ func (s *Server) patchObject(r *http.Request) jsonResponse {
 
 	var payload struct {
 		Metadata map[string]string `json:"metadata"`
-		CustomTime time.Time         `json:"customTime"`
+		CustomTime string
+		ContentEncoding string
 		Acl      []acls
 	}
 	err := json.NewDecoder(r.Body).Decode(&payload)
@@ -951,9 +966,13 @@ func (s *Server) patchObject(r *http.Request) jsonResponse {
 		}
 	}
 
+	//println("Payload CustomTime: ", payload.CustomTime)
+
 	var attrsToUpdate backend.ObjectAttrs
 
 	attrsToUpdate.Metadata = payload.Metadata
+	attrsToUpdate.CustomTime = payload.CustomTime
+	attrsToUpdate.ContentEncoding = payload.ContentEncoding
 
 	if len(payload.Acl) > 0 {
 		attrsToUpdate.ACL = []storage.ACLRule{}
@@ -972,45 +991,28 @@ func (s *Server) patchObject(r *http.Request) jsonResponse {
 	}
 	defer backendObj.Close()
 
+	println("Backend obj custom time: ", backendObj.ObjectAttrs.CustomTime)
+
 	s.eventManager.Trigger(&backendObj, notification.EventMetadata, nil)
-	return jsonResponse{data: fromBackendObjects([]backend.StreamingObject{backendObj})[0]}
+	resp := jsonResponse{data: fromBackendObjects([]backend.StreamingObject{backendObj})[0]}
+	println("resp.data: ", resp.data)
+	return resp
 }
 
 func (s *Server) updateObject(r *http.Request) jsonResponse {
 	vars := unescapeMuxVars(mux.Vars(r))
 	bucketName := vars["bucketName"]
 	objectName := vars["objectName"]
-
-	type acls struct {
-		Entity string
-		Role   string
-	}
-
-	var payload struct {
+	var metadata struct {
 		Metadata map[string]string `json:"metadata"`
-		CustomTime time.Time         `json:"customTime"`
-		Acl      []acls
 	}
-	err := json.NewDecoder(r.Body).Decode(&payload)
+	err := json.NewDecoder(r.Body).Decode(&metadata)
 	if err != nil {
 		return jsonResponse{
 			status:       http.StatusBadRequest,
 			errorMessage: "Metadata in the request couldn't decode",
 		}
 	}
-
-	var attrsToUpdate backend.ObjectAttrs
-
-	attrsToUpdate.Metadata = payload.Metadata
-
-	if len(payload.Acl) > 0 {
-		attrsToUpdate.ACL = []storage.ACLRule{}
-		for _, aclData := range payload.Acl {
-			newAcl := storage.ACLRule{Entity: storage.ACLEntity(aclData.Entity), Role: storage.ACLRole(aclData.Role)}
-			attrsToUpdate.ACL = append(attrsToUpdate.ACL, newAcl)
-		}
-	}
-	
 	backendObj, err := s.backend.UpdateObject(bucketName, objectName, metadata.Metadata)
 	if err != nil {
 		return jsonResponse{
@@ -1023,6 +1025,54 @@ func (s *Server) updateObject(r *http.Request) jsonResponse {
 	s.eventManager.Trigger(&backendObj, notification.EventMetadata, nil)
 	return jsonResponse{data: fromBackendObjects([]backend.StreamingObject{backendObj})[0]}
 }
+
+// func (s *Server) updateObject(r *http.Request) jsonResponse {
+// 	vars := unescapeMuxVars(mux.Vars(r))
+// 	bucketName := vars["bucketName"]
+// 	objectName := vars["objectName"]
+
+// 	type acls struct {
+// 		Entity string
+// 		Role   string
+// 	}
+
+// 	var payload struct {
+// 		Metadata map[string]string `json:"metadata"`
+// 		CustomTime time.Time         `json:"customTime"`
+// 		Acl      []acls
+// 	}
+// 	err := json.NewDecoder(r.Body).Decode(&payload)
+// 	if err != nil {
+// 		return jsonResponse{
+// 			status:       http.StatusBadRequest,
+// 			errorMessage: "Metadata in the request couldn't decode",
+// 		}
+// 	}
+
+// 	var attrsToUpdate backend.ObjectAttrs
+
+// 	attrsToUpdate.Metadata = payload.Metadata
+
+// 	if len(payload.Acl) > 0 {
+// 		attrsToUpdate.ACL = []storage.ACLRule{}
+// 		for _, aclData := range payload.Acl {
+// 			newAcl := storage.ACLRule{Entity: storage.ACLEntity(aclData.Entity), Role: storage.ACLRole(aclData.Role)}
+// 			attrsToUpdate.ACL = append(attrsToUpdate.ACL, newAcl)
+// 		}
+// 	}
+	
+// 	backendObj, err := s.backend.UpdateObject(bucketName, objectName, metadata.Metadata)
+// 	if err != nil {
+// 		return jsonResponse{
+// 			status:       http.StatusNotFound,
+// 			errorMessage: "Object not found to be updated",
+// 		}
+// 	}
+// 	defer backendObj.Close()
+
+// 	s.eventManager.Trigger(&backendObj, notification.EventMetadata, nil)
+// 	return jsonResponse{data: fromBackendObjects([]backend.StreamingObject{backendObj})[0]}
+// }
 
 func (s *Server) composeObject(r *http.Request) jsonResponse {
 	vars := unescapeMuxVars(mux.Vars(r))
