@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - full-custom-time-fix
 
   pull_request:
     branches:
