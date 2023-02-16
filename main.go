@@ -23,6 +23,10 @@ import (
 
 func main() {
 	cfg, err := config.Load(os.Args[1:])
+	println("Os args:")
+	for i := range os.Args[1:] {
+		println(os.Args[i])
+	}
 	if err == flag.ErrHelp {
 		return
 	}

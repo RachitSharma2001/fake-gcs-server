@@ -31,6 +31,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
+
+	// Added:
+	"os"
+	"path/filepath"
+	"github.com/fsouza/fake-gcs-server/internal/checksum"
 )
 
 const defaultPublicHost = "storage.googleapis.com"
@@ -116,6 +121,8 @@ type Options struct {
 
 	PrivateKeyLocation string
 }
+
+
 
 // NewServerWithOptions creates a new server configured according to the
 // provided options.
@@ -226,6 +233,189 @@ func unescapeMuxVars(vars map[string]string) map[string]string {
 	return m
 }
 
+func (s *Server) ReloadServer(r *http.Request) jsonResponse {
+	folder := "/data"
+	logger := logrus.New()
+
+	objs, emptyBuckets := generateObjectsFromFiles(logger, folder)
+
+	for _, bucketName := range emptyBuckets {
+		s.CreateBucketWithOpts(CreateBucketOpts{Name: bucketName})
+	}
+
+	backendObjects := bufferedObjectsToBackendObjects(objs)
+	var err error
+	if s.options.StorageRoot != "" {
+		s.backend, err = backend.NewStorageFS(backendObjects, s.options.StorageRoot)
+	} else {
+		s.backend, err = backend.NewStorageMemory(backendObjects)
+	}
+
+	if (err != nil) {
+		logger.WithError(err).Fatal("couldn't replace server backend!")
+	}
+
+	return jsonResponse{}
+}
+
+
+func generateObjectsFromFiles(logger *logrus.Logger, folder string) ([]Object, []string) {
+	var objects []Object
+	var emptyBuckets []string
+	if files, err := os.ReadDir(folder); err == nil {
+		for _, f := range files {
+			if !f.IsDir() {
+				continue
+			}
+			bucketName := f.Name()
+			localBucketPath := filepath.Join(folder, bucketName)
+
+			bucketObjects, err := objectsFromBucket(localBucketPath, bucketName)
+			if err != nil {
+				logger.WithError(err).Warnf("couldn't read files from %q, skipping (make sure it's a directory)", localBucketPath)
+				continue
+			}
+
+			if len(bucketObjects) < 1 {
+				emptyBuckets = append(emptyBuckets, bucketName)
+			}
+			objects = append(objects, bucketObjects...)
+		}
+	}
+	if len(objects) == 0 && len(emptyBuckets) == 0 {
+		logger.Infof("couldn't load any objects or buckets from %q, starting empty", folder)
+	}
+	return objects, emptyBuckets
+}
+
+func objectsFromBucket(localBucketPath, bucketName string) ([]Object, error) {
+	var objects []Object
+	err := filepath.Walk(localBucketPath, func(path string, info os.FileInfo, _ error) error {
+		if info.Mode().IsRegular() {
+			// Rel() should never return error since path always descend from localBucketPath
+			relPath, _ := filepath.Rel(localBucketPath, path)
+			objectKey := filepath.ToSlash(relPath)
+			fileContent, err := os.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("could not read file %q: %w", path, err)
+			}
+			objects = append(objects, Object{
+				ObjectAttrs: ObjectAttrs{
+					ACL: []storage.ACLRule{
+						{
+							Entity: "projectOwner-test-project",
+							Role:   "OWNER",
+						},
+					},
+					BucketName:  bucketName,
+					Name:        objectKey,
+					ContentType: mime.TypeByExtension(filepath.Ext(path)),
+					Crc32c:      checksum.EncodedCrc32cChecksum(fileContent),
+					Md5Hash:     checksum.EncodedMd5Hash(fileContent),
+				},
+				Content: fileContent,
+			})
+		}
+		return nil
+	})
+	return objects, err
+}
+
+// func objectsFromBucket(localBucketPath, bucketName string) ([]Object, error) {
+// 	var objects []Object
+// 	err := filepath.Walk(localBucketPath, func(path string, info os.FileInfo, _ error) error {
+// 		if info.Mode().IsRegular() {
+// 			// Rel() should never return error since path always descend from localBucketPath
+// 			relPath, _ := filepath.Rel(localBucketPath, path)
+// 			objectKey := filepath.ToSlash(relPath)
+// 			fileContent, err := os.ReadFile(path)
+// 			if err != nil {
+// 				return fmt.Errorf("could not read file %q: %w", path, err)
+// 			}
+// 			objects = append(objects, Object{
+// 				ObjectAttrs: ObjectAttrs{
+// 					ACL: []storage.ACLRule{
+// 						{
+// 							Entity: "projectOwner-test-project",
+// 							Role:   "OWNER",
+// 						},
+// 					},
+// 					BucketName:  bucketName,
+// 					Name:        objectKey,
+// 					ContentType: mime.TypeByExtension(filepath.Ext(path)),
+// 					Crc32c:      checksum.EncodedCrc32cChecksum(fileContent),
+// 					Md5Hash:     checksum.EncodedMd5Hash(fileContent),
+// 				},
+// 				Content: fileContent,
+// 			})
+// 		}
+// 		return nil
+// 	})
+// 	return objects, err
+// }
+
+// func (s *Server) ReloadServer(r *http.Request) jsonResponse {
+
+// 	// print out the folder
+// 	//println("Options storage root: ", s.options.StorageRoot, s.options.BucketsLocation)
+
+// 	// var err error 
+// 	// println("Reloading server ......")
+// 	// s, err = NewServerWithOptions(s.options)
+// 	// println("Server: ", s.publicHost)
+// 	// println("Error: ", err)
+
+// 	/*
+// 		1. read the root folder
+// 		2. get all the buckets and objects
+// 		3. we know how to add objects, but how do we add buckets?
+// 			ah so we use s.createBucketWithOpts
+// 	*/
+  
+// 	/*	Adds new Bucket
+// 	*/
+
+// 	s.CreateBucketWithOpts(CreateBucketOpts{Name: "bucket2"})
+// 	println("Created bucket2!")
+
+// 	/*   Adds new objects:
+
+// 	println("Reloading the initial objects...")
+// 	newobj := Object{
+// 		ObjectAttrs: ObjectAttrs{
+// 			ACL: []storage.ACLRule{
+// 				{
+// 					Entity: "projectOwner-test-project",
+// 					Role:   "OWNER",
+// 				},
+// 			},
+// 			BucketName:  "bucket1",
+// 			Name:        "another.txt",
+// 		},
+// 		Content: nil,
+// 	}
+// 	objs := append(s.options.InitialObjects, newobj)
+// 	for i := range objs {
+// 		println("Initial obj ", i, ": ", objs[i].Name)
+// 	}
+// 	backendObjects := bufferedObjectsToBackendObjects(objs)
+// 	var err error
+// 	if s.options.StorageRoot != "" {
+// 		s.backend, err = backend.NewStorageFS(backendObjects, s.options.StorageRoot)
+// 	} else {
+// 		s.backend, err = backend.NewStorageMemory(backendObjects)
+// 	}
+
+// 	if err != nil {
+// 		println("Error: ", err)
+// 	}
+// 	println("Updated backedn storage!")*/
+	
+
+// 	return jsonResponse{}
+// }
+
+
 func (s *Server) buildMuxer() {
 	const apiPrefix = "/storage/v1"
 	s.mux = mux.NewRouter().SkipClean(true).UseEncodedPath()
@@ -256,6 +446,8 @@ func (s *Server) buildMuxer() {
 		r.Path("/b/{bucketName}/o/{destinationObject:.+}/compose").Methods(http.MethodPost).HandlerFunc(jsonToHTTPHandler(s.composeObject))
 		r.Path("/b/{bucketName}/o/{objectName:.+}").Methods(http.MethodPut, http.MethodPost).HandlerFunc(jsonToHTTPHandler(s.updateObject))
 	}
+
+	s.mux.Path("/_internal/reseed").Methods(http.MethodPut, http.MethodPost).HandlerFunc(jsonToHTTPHandler(s.ReloadServer))
 
 	// Internal / update server configuration
 	s.mux.Path("/_internal/config").Methods(http.MethodPut).HandlerFunc(jsonToHTTPHandler(s.updateServerConfig))
